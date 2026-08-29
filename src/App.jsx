@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Crown, Calculator, CalendarClock, Building2, LogOut } from "lucide-react";
+import { Send, Crown, Calculator, CalendarClock, Building2, LogOut, Paperclip, X, FileText } from "lucide-react";
+import { supabase } from "./lib/supabaseClient";
+import { fileToAttachment } from "./lib/fileToAttachment";
 
 // Chave pública (anon) do projeto Supabase — segura para expor no front-end.
 // A chave da Anthropic fica só no servidor, dentro da Edge Function.
@@ -36,7 +38,13 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
   const [messages, setMessages] = useState({ sancho: [], savio: [], sandra: [] });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState([]); // [{name, attachment}]
+  const [processingFiles, setProcessingFiles] = useState(false);
+  const [fileError, setFileError] = useState("");
+  const [documents, setDocuments] = useState([]);
+  const [showDocs, setShowDocs] = useState(false);
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const persona = PERSONAS[active];
   const thread = messages[active];
@@ -45,13 +53,69 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [thread, loading]);
 
+  useEffect(() => {
+    if (company?.id) loadDocuments();
+  }, [company?.id]);
+
+  async function loadDocuments() {
+    const { data } = await supabase
+      .from("documents")
+      .select("id, file_name, file_type, created_at")
+      .eq("company_id", company.id)
+      .order("created_at", { ascending: false });
+    setDocuments(data || []);
+  }
+
+  async function handleFilesSelected(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    setFileError("");
+    setProcessingFiles(true);
+    for (const file of files) {
+      try {
+        const attachment = await fileToAttachment(file);
+        setPendingFiles((prev) => [...prev, { name: file.name, attachment }]);
+
+        // Salva o arquivo original no Storage + metadados na tabela, para histórico da empresa
+        const path = `${company.id}/${Date.now()}_${file.name}`;
+        const { error: upErr } = await supabase.storage.from("documents").upload(path, file);
+        if (!upErr) {
+          await supabase.from("documents").insert({
+            company_id: company.id,
+            uploaded_by: profile.id,
+            file_name: file.name,
+            file_path: path,
+            file_type: fileTypeLabel(file),
+            file_size: file.size,
+          });
+          loadDocuments();
+        }
+      } catch (err) {
+        setFileError(err.message);
+      }
+    }
+    setProcessingFiles(false);
+  }
+
+  function fileTypeLabel(file) {
+    return file.name.split(".").pop()?.toLowerCase() || "arquivo";
+  }
+
+  function removePendingFile(idx) {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
+  }
+
   async function send() {
     const text = input.trim();
-    if (!text || loading) return;
+    if ((!text && pendingFiles.length === 0) || loading) return;
     setInput("");
-    const userMsg = { role: "user", content: text };
+    const attachmentsToSend = pendingFiles.map((f) => f.attachment);
+    const attachmentNote = pendingFiles.length > 0 ? `\n\n📎 ${pendingFiles.map((f) => f.name).join(", ")}` : "";
+    const userMsg = { role: "user", content: (text || "Analise o(s) documento(s) anexado(s).") + attachmentNote };
     const nextThread = [...thread, userMsg];
     setMessages((m) => ({ ...m, [active]: nextThread }));
+    setPendingFiles([]);
     setLoading(true);
     try {
       const res = await fetch(SUPABASE_FN_URL, {
@@ -64,6 +128,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
         body: JSON.stringify({
           persona: active,
           messages: nextThread.map((m) => ({ role: m.role, content: m.content })),
+          attachments: attachmentsToSend,
         }),
       });
       const data = await res.json();
@@ -123,14 +188,57 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
             </button>
           )}
         </div>
-        <button
-          onClick={onSignOut}
-          title="Sair"
-          style={{ background: "none", border: "none", color: "rgba(237,234,227,0.5)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "11.5px" }}
-        >
-          <LogOut size={12} /> Sair
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <button
+            onClick={() => setShowDocs((v) => !v)}
+            style={{ background: "none", border: "none", color: showDocs ? "#C9A227" : "rgba(237,234,227,0.5)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "11.5px" }}
+          >
+            <FileText size={12} /> Documentos ({documents.length})
+          </button>
+          <button
+            onClick={onSignOut}
+            title="Sair"
+            style={{ background: "none", border: "none", color: "rgba(237,234,227,0.5)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "11.5px" }}
+          >
+            <LogOut size={12} /> Sair
+          </button>
+        </div>
       </div>
+
+      {showDocs && (
+        <div
+          style={{
+            padding: "12px 22px",
+            borderBottom: "1px solid rgba(237,234,227,0.08)",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "8px",
+            flexShrink: 0,
+          }}
+        >
+          {documents.length === 0 && (
+            <div style={{ fontSize: "12px", color: "rgba(237,234,227,0.4)" }}>Nenhum documento enviado ainda para {company?.name}.</div>
+          )}
+          {documents.map((d) => (
+            <div
+              key={d.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "rgba(237,234,227,0.06)",
+                border: "1px solid rgba(237,234,227,0.1)",
+                borderRadius: "6px",
+                padding: "5px 10px",
+                fontSize: "11.5px",
+                color: "rgba(237,234,227,0.75)",
+              }}
+            >
+              <FileText size={11} /> {d.file_name}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
       {/* Sidebar */}
@@ -271,45 +379,103 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
           )}
         </div>
 
-        <div style={{ padding: "16px 22px", borderTop: "1px solid rgba(237,234,227,0.08)", display: "flex", gap: "10px" }}>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder={`Escreva para ${persona.name}…`}
-            rows={1}
-            style={{
-              flex: 1,
-              resize: "none",
-              background: "rgba(237,234,227,0.06)",
-              border: "1px solid rgba(237,234,227,0.12)",
-              borderRadius: "8px",
-              color: "#EDEAE3",
-              padding: "10px 12px",
-              fontSize: "13.5px",
-              fontFamily: "inherit",
-              outline: "none",
-            }}
-          />
-          <button
-            onClick={send}
-            disabled={loading || !input.trim()}
-            style={{
-              background: persona.accent,
-              border: "none",
-              borderRadius: "8px",
-              width: "40px",
-              height: "40px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: loading || !input.trim() ? "not-allowed" : "pointer",
-              opacity: loading || !input.trim() ? 0.5 : 1,
-              flexShrink: 0,
-            }}
-          >
-            <Send size={16} color="#161D27" />
-          </button>
+        <div style={{ padding: "12px 22px 16px 22px", borderTop: "1px solid rgba(237,234,227,0.08)" }}>
+          {fileError && (
+            <div style={{ fontSize: "12px", color: "#E07856", marginBottom: "8px" }}>{fileError}</div>
+          )}
+          {pendingFiles.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "10px" }}>
+              {pendingFiles.map((f, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: persona.accentSoft,
+                    border: `1px solid ${persona.accent}33`,
+                    borderRadius: "6px",
+                    padding: "5px 8px",
+                    fontSize: "11.5px",
+                  }}
+                >
+                  <FileText size={11} color={persona.accent} />
+                  {f.name}
+                  <button onClick={() => removePendingFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(237,234,227,0.6)", display: "flex" }}>
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+              {processingFiles && <div style={{ fontSize: "11.5px", color: "rgba(237,234,227,0.5)" }}>Processando…</div>}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: "10px" }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.csv,.xlsx,.xls,.txt,.md"
+              onChange={handleFilesSelected}
+              style={{ display: "none" }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              title="Anexar documento (PDF, CSV, XLSX)"
+              style={{
+                background: "rgba(237,234,227,0.06)",
+                border: "1px solid rgba(237,234,227,0.12)",
+                borderRadius: "8px",
+                width: "40px",
+                height: "40px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                color: "rgba(237,234,227,0.7)",
+                flexShrink: 0,
+              }}
+            >
+              <Paperclip size={16} />
+            </button>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKey}
+              placeholder={`Escreva para ${persona.name}…`}
+              rows={1}
+              style={{
+                flex: 1,
+                resize: "none",
+                background: "rgba(237,234,227,0.06)",
+                border: "1px solid rgba(237,234,227,0.12)",
+                borderRadius: "8px",
+                color: "#EDEAE3",
+                padding: "10px 12px",
+                fontSize: "13.5px",
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+            />
+            <button
+              onClick={send}
+              disabled={loading || (!input.trim() && pendingFiles.length === 0)}
+              style={{
+                background: persona.accent,
+                border: "none",
+                borderRadius: "8px",
+                width: "40px",
+                height: "40px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: loading || (!input.trim() && pendingFiles.length === 0) ? "not-allowed" : "pointer",
+                opacity: loading || (!input.trim() && pendingFiles.length === 0) ? 0.5 : 1,
+                flexShrink: 0,
+              }}
+            >
+              <Send size={16} color="#161D27" />
+            </button>
+          </div>
         </div>
       </div>
       </div>
