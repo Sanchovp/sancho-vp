@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Building2,
   Users,
+  ClipboardList,
   Plus,
   Trash2,
   Pencil,
@@ -61,6 +62,7 @@ const SECTIONS = [
   { key: "overview", label: "Visão Geral", icon: TrendingUp },
   { key: "indicators", label: "Indicadores", icon: ListChecks },
   { key: "statements", label: "DRE & Balanço", icon: FileSpreadsheet },
+  { key: "checklist", label: "Checklist de Docs", icon: ClipboardList },
   { key: "profile", label: "Empresa", icon: Building2 },
   { key: "team", label: "Equipe", icon: Users },
   { key: "news", label: "Comunicados", icon: Megaphone },
@@ -225,6 +227,10 @@ export default function Dashboard({ company, profile }) {
 
             <SectionBlock innerRef={(el) => (sectionRefs.current.statements = el)} title="DRE & Balanço" icon={FileSpreadsheet}>
               <Statements realized={realized} projected={projected} />
+            </SectionBlock>
+
+            <SectionBlock innerRef={(el) => (sectionRefs.current.checklist = el)} title="Checklist de Documentos" icon={ClipboardList}>
+              <DocumentChecklist company={company} isAdmin={isAdmin} />
             </SectionBlock>
 
             <SectionBlock innerRef={(el) => (sectionRefs.current.profile = el)} title="Empresa" icon={Building2}>
@@ -659,6 +665,209 @@ function EventRow({ ev, canPost, onDelete }) {
       </div>
       {canPost && (
         <button onClick={onDelete} style={iconButtonStyle} title="Excluir">
+          <Trash2 size={13} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Checklist de Documentos ---------------- */
+
+const CHECKLIST_CATEGORIES = {
+  contas_consumo: "Contas de Consumo",
+  bancario: "Bancário",
+  contabil_fiscal: "Contábil / Fiscal",
+  societario_juridico: "Societário / Jurídico",
+  operacional: "Operacional",
+  rh: "Recursos Humanos",
+  outro: "Outro",
+};
+
+const DEFAULT_CHECKLIST = [
+  { category: "contas_consumo", label: "Conta de luz (mês corrente)" },
+  { category: "contas_consumo", label: "Conta de água" },
+  { category: "contas_consumo", label: "Conta de internet/telefone" },
+  { category: "contas_consumo", label: "Conta de gás (se aplicável)" },
+  { category: "bancario", label: "Extratos bancários de todas as contas (mês corrente)" },
+  { category: "bancario", label: "Extrato de cartão de crédito empresarial" },
+  { category: "bancario", label: "Conciliação bancária do mês" },
+  { category: "contabil_fiscal", label: "Balancete mensal" },
+  { category: "contabil_fiscal", label: "Livro caixa" },
+  { category: "contabil_fiscal", label: "Guias de impostos pagas (DAS/DARF/ICMS/ISS)" },
+  { category: "contabil_fiscal", label: "Declarações fiscais (DEFIS, ECF, conforme porte)" },
+  { category: "contabil_fiscal", label: "Guias de FGTS e INSS" },
+  { category: "societario_juridico", label: "Contrato social atualizado" },
+  { category: "societario_juridico", label: "Alterações contratuais recentes" },
+  { category: "societario_juridico", label: "Certidões negativas (federal, estadual, municipal)" },
+  { category: "societario_juridico", label: "Certidão negativa de débitos trabalhistas (CNDT)" },
+  { category: "operacional", label: "Notas fiscais emitidas do mês" },
+  { category: "operacional", label: "Notas fiscais de compras/despesas relevantes" },
+  { category: "operacional", label: "Contratos vigentes com fornecedores/clientes relevantes" },
+  { category: "rh", label: "Relação de funcionários ativos" },
+  { category: "rh", label: "Contratos de trabalho novos / rescisões do período" },
+];
+
+function DocumentChecklist({ company, isAdmin }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [label, setLabel] = useState("");
+  const [category, setCategory] = useState("outro");
+  const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+
+  useEffect(() => {
+    load();
+  }, [company?.id]);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("document_checklist_items")
+      .select("id, category, label, status, notes")
+      .eq("company_id", company.id)
+      .order("created_at");
+    setItems(data || []);
+    setLoading(false);
+  }
+
+  async function addItem(e) {
+    e.preventDefault();
+    if (!label.trim()) return;
+    setSaving(true);
+    await supabase.from("document_checklist_items").insert({ company_id: company.id, category, label: label.trim() });
+    setLabel("");
+    setCategory("outro");
+    setShowForm(false);
+    setSaving(false);
+    load();
+  }
+
+  async function toggleStatus(item) {
+    const newStatus = item.status === "pendente" ? "recebido" : "pendente";
+    await supabase
+      .from("document_checklist_items")
+      .update({ status: newStatus, received_at: newStatus === "recebido" ? new Date().toISOString() : null })
+      .eq("id", item.id);
+    load();
+  }
+
+  async function remove(id) {
+    await supabase.from("document_checklist_items").delete().eq("id", id);
+    load();
+  }
+
+  async function seedDefaults() {
+    setSeeding(true);
+    const existingLabels = new Set(items.map((i) => i.label));
+    const toInsert = DEFAULT_CHECKLIST.filter((d) => !existingLabels.has(d.label)).map((d) => ({
+      company_id: company.id,
+      category: d.category,
+      label: d.label,
+    }));
+    if (toInsert.length > 0) {
+      await supabase.from("document_checklist_items").insert(toInsert);
+    }
+    setSeeding(false);
+    load();
+  }
+
+  if (loading) return null;
+
+  const pending = items.filter((i) => i.status === "pendente");
+  const received = items.filter((i) => i.status === "recebido");
+  const groups = [...new Set(items.map((i) => i.category))];
+
+  return (
+    <div>
+      <div style={{ fontSize: "11.5px", color: "rgba(237,234,227,0.45)", marginBottom: "14px" }}>
+        A Sandra usa esta lista automaticamente nas conversas para lembrar o que ainda falta enviar.
+      </div>
+
+      {isAdmin && (
+        <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+          {!showForm ? (
+            <button onClick={() => setShowForm(true)} style={addButtonStyle}>
+              <Plus size={13} /> Adicionar item
+            </button>
+          ) : null}
+          {items.length === 0 && (
+            <button onClick={seedDefaults} disabled={seeding} style={addButtonStyle}>
+              {seeding ? "Carregando…" : "Usar lista padrão sugerida"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {showForm && (
+        <form onSubmit={addItem} style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: "8px", maxWidth: "420px", marginBottom: "16px" }}>
+          <input placeholder="Nome do documento" value={label} onChange={(e) => setLabel(e.target.value)} required style={inputStyle} />
+          <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
+            {Object.entries(CHECKLIST_CATEGORIES).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button type="submit" disabled={saving} style={saveButtonStyle}>{saving ? "Salvando…" : "Adicionar"}</button>
+            <button type="button" onClick={() => setShowForm(false)} style={cancelButtonStyle}>Cancelar</button>
+          </div>
+        </form>
+      )}
+
+      {items.length === 0 && (
+        <EmptyState text='Nenhum item no checklist ainda. Clique em "Usar lista padrão sugerida" para começar rápido.' />
+      )}
+
+      {pending.length > 0 && (
+        <>
+          <div style={{ fontSize: "11px", color: "#B25C45", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "8px" }}>
+            Pendentes ({pending.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "20px" }}>
+            {groups.map((g) =>
+              pending.filter((i) => i.category === g).length > 0 ? (
+                <div key={g}>
+                  <div style={{ fontSize: "10.5px", color: "rgba(237,234,227,0.4)", margin: "6px 0 4px 2px" }}>{CHECKLIST_CATEGORIES[g]}</div>
+                  {pending
+                    .filter((i) => i.category === g)
+                    .map((item) => (
+                      <ChecklistRow key={item.id} item={item} isAdmin={isAdmin} onToggle={() => toggleStatus(item)} onDelete={() => remove(item.id)} />
+                    ))}
+                </div>
+              ) : null
+            )}
+          </div>
+        </>
+      )}
+
+      {received.length > 0 && (
+        <>
+          <div style={{ fontSize: "11px", color: "#4C7A5C", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "8px" }}>
+            Recebidos ({received.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", opacity: 0.7 }}>
+            {received.map((item) => (
+              <ChecklistRow key={item.id} item={item} isAdmin={isAdmin} onToggle={() => toggleStatus(item)} onDelete={() => remove(item.id)} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ChecklistRow({ item, isAdmin, onToggle, onDelete }) {
+  return (
+    <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px" }}>
+        <input type="checkbox" checked={item.status === "recebido"} onChange={onToggle} />
+        <span style={{ textDecoration: item.status === "recebido" ? "line-through" : "none", color: item.status === "recebido" ? "rgba(237,234,227,0.5)" : "#EDEAE3" }}>
+          {item.label}
+        </span>
+      </label>
+      {isAdmin && (
+        <button onClick={onDelete} style={iconButtonStyle} title="Remover">
           <Trash2 size={13} />
         </button>
       )}

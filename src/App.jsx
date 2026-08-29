@@ -160,6 +160,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
           persona: active,
           messages: nextThread.map((m) => ({ role: m.role, content: m.content })),
           attachments: attachmentsToSend,
+          company_id: company?.id,
         }),
       });
       const data = await res.json();
@@ -179,6 +180,40 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
+    }
+  }
+
+  async function sendPreset(text) {
+    if (loading) return;
+    const userMsg = { role: "user", content: text };
+    const nextThread = [...thread, userMsg];
+    setMessages((m) => ({ ...m, [active]: nextThread }));
+    setLoading(true);
+    try {
+      const res = await fetch(SUPABASE_FN_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + SUPABASE_ANON_KEY,
+          apikey: SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          persona: active,
+          messages: nextThread.map((m) => ({ role: m.role, content: m.content })),
+          attachments: [],
+          company_id: company?.id,
+        }),
+      });
+      const data = await res.json();
+      const reply = data.reply || "Desculpe, não consegui formular uma resposta agora.";
+      setMessages((m) => ({ ...m, [active]: [...nextThread, { role: "assistant", content: reply }] }));
+    } catch (e) {
+      setMessages((m) => ({
+        ...m,
+        [active]: [...nextThread, { role: "assistant", content: "Houve um erro ao consultar o conselho. Tente novamente." }],
+      }));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -454,6 +489,25 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
           />
           <div style={{ fontSize: "14px", fontWeight: 600 }}>{persona.name}</div>
           <div style={{ fontSize: "12px", color: "rgba(237,234,227,0.5)" }}>· {persona.role}</div>
+          {active === "sandra" && (
+            <button
+              onClick={() => sendPreset("Me dê um resumo da semana: eventos e contas próximas, documentos pendentes e sugestões de atividades prioritárias.")}
+              disabled={loading}
+              style={{
+                marginLeft: "auto",
+                background: persona.accentSoft,
+                border: `1px solid ${persona.accent}44`,
+                borderRadius: "6px",
+                padding: "6px 12px",
+                fontSize: "11.5px",
+                color: persona.accent,
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.6 : 1,
+              }}
+            >
+              Resumo da semana
+            </button>
+          )}
         </div>
 
         <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px 22px", display: "flex", flexDirection: "column", gap: "14px" }}>
