@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Crown, Calculator, CalendarClock, Building2, LogOut, Paperclip, X, FileText, BarChart3 } from "lucide-react";
+import { Send, Crown, Calculator, CalendarClock, Building2, LogOut, Paperclip, X, FileText, BarChart3, FileStack } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import { fileToAttachment } from "./lib/fileToAttachment";
 import Dashboard from "./Dashboard";
+import Documents from "./Documents";
 
 // Chave pública (anon) do projeto Supabase — segura para expor no front-end.
 // A chave da Anthropic fica só no servidor, dentro da Edge Function.
@@ -382,10 +383,56 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
             <div style={{ fontSize: "10.5px", opacity: 0.75 }}>Financeiro</div>
           </span>
         </button>
+
+        <button
+          onClick={() => setActive("documents")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "10px 10px",
+            borderRadius: "8px",
+            border: "none",
+            background: active === "documents" ? "rgba(201,162,39,0.14)" : "transparent",
+            color: active === "documents" ? "#C9A227" : "rgba(237,234,227,0.75)",
+            cursor: "pointer",
+            textAlign: "left",
+            marginTop: "4px",
+          }}
+        >
+          <span
+            style={{
+              width: "30px",
+              height: "30px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: active === "documents" ? "#C9A227" : "rgba(237,234,227,0.08)",
+              color: active === "documents" ? "#161D27" : "rgba(237,234,227,0.6)",
+              flexShrink: 0,
+            }}
+          >
+            <FileStack size={15} />
+          </span>
+          <span>
+            <div style={{ fontSize: "13.5px", fontWeight: 600 }}>Documentos</div>
+            <div style={{ fontSize: "10.5px", opacity: 0.75 }}>Pautas e memorandos</div>
+          </span>
+        </button>
       </div>
 
       {active === "dashboard" ? (
         <Dashboard company={company} profile={profile} />
+      ) : active === "documents" ? (
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px 22px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "20px" }}>
+            <FileStack size={16} color="#C9A227" />
+            <div style={{ fontSize: "15px", fontWeight: 600 }}>Documentos</div>
+            <div style={{ fontSize: "12px", color: "rgba(237,234,227,0.5)" }}>· {company?.name}</div>
+          </div>
+          <Documents company={company} />
+        </div>
       ) : (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <div
