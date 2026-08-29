@@ -2,19 +2,30 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import Login from "./Login";
 import CompanySelector from "./CompanySelector";
+import SetPassword from "./SetPassword";
 
 const COMPANY_STORAGE_KEY = "sancho_vp_selected_company";
+
+function isInviteOrRecoveryLink() {
+  const hash = window.location.hash || "";
+  return hash.includes("type=invite") || hash.includes("type=recovery");
+}
 
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(undefined); // undefined = carregando, null = sem sessão
   const [profile, setProfile] = useState(null);
   const [company, setCompany] = useState(null);
   const [restoringCompany, setRestoringCompany] = useState(true);
+  const [needsPassword, setNeedsPassword] = useState(false);
 
   useEffect(() => {
+    if (isInviteOrRecoveryLink()) setNeedsPassword(true);
     supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && isInviteOrRecoveryLink())) {
+        setNeedsPassword(true);
+      }
       // Só reseta a empresa selecionada em logout de verdade,
       // não em renovações silenciosas de token (ex: ao voltar pra aba).
       if (event === "SIGNED_OUT") {
@@ -77,6 +88,16 @@ export default function AuthGate({ children }) {
   }
   if (!session) {
     return <Login />;
+  }
+  if (needsPassword) {
+    return (
+      <SetPassword
+        onDone={() => {
+          setNeedsPassword(false);
+          window.history.replaceState(null, "", window.location.pathname);
+        }}
+      />
+    );
   }
   if (!profile || restoringCompany) {
     return <FullscreenMessage text="Preparando seu perfil…" />;
