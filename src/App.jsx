@@ -4,6 +4,7 @@ import { supabase } from "./lib/supabaseClient";
 import { fileToAttachment } from "./lib/fileToAttachment";
 import Dashboard from "./Dashboard";
 import Documents from "./Documents";
+import ReactMarkdown from "react-markdown";
 
 // Chave pública (anon) do projeto Supabase — segura para expor no front-end.
 // A chave da Anthropic fica só no servidor, dentro da Edge Function.
@@ -528,10 +529,16 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
                 padding: "10px 14px",
                 fontSize: "13.5px",
                 lineHeight: 1.5,
-                whiteSpace: "pre-wrap",
+                whiteSpace: m.role === "user" ? "pre-wrap" : "normal",
               }}
             >
-              {m.content}
+              {m.role === "assistant" ? (
+                <div className="md-content">
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                </div>
+              ) : (
+                m.content
+              )}
             </div>
           ))}
           {loading && (
