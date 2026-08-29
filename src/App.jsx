@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Crown, Calculator, CalendarClock } from "lucide-react";
+import { Send, Crown, Calculator, CalendarClock, Building2, LogOut } from "lucide-react";
 
 // Chave pública (anon) do projeto Supabase — segura para expor no front-end.
 // A chave da Anthropic fica só no servidor, dentro da Edge Function.
@@ -31,7 +31,7 @@ const PERSONAS = {
   },
 };
 
-export default function App() {
+export default function App({ company, profile, onSwitchCompany, onSignOut }) {
   const [active, setActive] = useState("sancho");
   const [messages, setMessages] = useState({ sancho: [], savio: [], sandra: [] });
   const [input, setInput] = useState("");
@@ -95,8 +95,44 @@ export default function App() {
         height: "100%",
         color: "#EDEAE3",
         display: "flex",
+        flexDirection: "column",
       }}
     >
+      {/* Barra de contexto: empresa atual e usuário */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "8px 16px",
+          borderBottom: "1px solid rgba(237,234,227,0.08)",
+          fontSize: "12px",
+          color: "rgba(237,234,227,0.65)",
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <Building2 size={13} color="#C9A227" />
+          {company?.name}
+          {profile?.is_super_admin && (
+            <button
+              onClick={onSwitchCompany}
+              style={{ background: "none", border: "none", color: "#C9A227", fontSize: "11.5px", cursor: "pointer", marginLeft: "6px", textDecoration: "underline" }}
+            >
+              trocar
+            </button>
+          )}
+        </div>
+        <button
+          onClick={onSignOut}
+          title="Sair"
+          style={{ background: "none", border: "none", color: "rgba(237,234,227,0.5)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "11.5px" }}
+        >
+          <LogOut size={12} /> Sair
+        </button>
+      </div>
+
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
       {/* Sidebar */}
       <div
         style={{
@@ -275,6 +311,7 @@ export default function App() {
             <Send size={16} color="#161D27" />
           </button>
         </div>
+      </div>
       </div>
     </div>
   );
