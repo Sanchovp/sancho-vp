@@ -3,19 +3,23 @@ import { supabase } from "./lib/supabaseClient";
 import Login from "./Login";
 import CompanySelector from "./CompanySelector";
 
+const COMPANY_STORAGE_KEY = "sancho_vp_selected_company";
+
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(undefined); // undefined = carregando, null = sem sessão
   const [profile, setProfile] = useState(null);
   const [company, setCompany] = useState(null);
+  const [restoringCompany, setRestoringCompany] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
-      // Só reseta a empresa selecionada em login/logout de verdade,
+      // Só reseta a empresa selecionada em logout de verdade,
       // não em renovações silenciosas de token (ex: ao voltar pra aba).
-      if (event === "SIGNED_OUT" || event === "SIGNED_IN") {
+      if (event === "SIGNED_OUT") {
         setCompany(null);
+        localStorage.removeItem(COMPANY_STORAGE_KEY);
       }
     });
     return () => sub.subscription.unsubscribe();
@@ -34,26 +38,60 @@ export default function AuthGate({ children }) {
       .then(({ data }) => setProfile(data));
   }, [session]);
 
+  // Restaura a empresa selecionada anteriormente (sobrevive a recarregamentos
+  // de página, como quando o navegador recarrega a aba em segundo plano).
+  useEffect(() => {
+    if (!session || !profile) {
+      setRestoringCompany(false);
+      return;
+    }
+    const savedId = localStorage.getItem(COMPANY_STORAGE_KEY);
+    if (!savedId) {
+      setRestoringCompany(false);
+      return;
+    }
+    supabase
+      .from("companies")
+      .select("id, name")
+      .eq("id", savedId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setCompany(data);
+        else localStorage.removeItem(COMPANY_STORAGE_KEY);
+        setRestoringCompany(false);
+      });
+  }, [session, profile]);
+
+  function selectCompany(c) {
+    localStorage.setItem(COMPANY_STORAGE_KEY, c.id);
+    setCompany(c);
+  }
+
+  function switchCompany() {
+    localStorage.removeItem(COMPANY_STORAGE_KEY);
+    setCompany(null);
+  }
+
   if (session === undefined) {
     return <FullscreenMessage text="Carregando…" />;
   }
   if (!session) {
     return <Login />;
   }
-  if (!profile) {
+  if (!profile || restoringCompany) {
     return <FullscreenMessage text="Preparando seu perfil…" />;
   }
   if (!company) {
     return (
       <CompanySelector
         profile={profile}
-        onSelect={setCompany}
+        onSelect={selectCompany}
         onSignOut={() => supabase.auth.signOut()}
       />
     );
   }
 
-  return children({ session, profile, company, onSwitchCompany: () => setCompany(null), onSignOut: () => supabase.auth.signOut() });
+  return children({ session, profile, company, onSwitchCompany: switchCompany, onSignOut: () => supabase.auth.signOut() });
 }
 
 function FullscreenMessage({ text }) {

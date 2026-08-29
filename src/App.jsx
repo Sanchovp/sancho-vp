@@ -34,9 +34,34 @@ const PERSONAS = {
   },
 };
 
+function messagesStorageKey(companyId) {
+  return `sancho_vp_messages_${companyId}`;
+}
+
+function loadStoredMessages(companyId) {
+  const empty = { sancho: [], savio: [], sandra: [] };
+  if (!companyId) return empty;
+  try {
+    const raw = sessionStorage.getItem(messagesStorageKey(companyId));
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw);
+    return { ...empty, ...parsed };
+  } catch {
+    return empty;
+  }
+}
+
+function saveStoredMessages(companyId, messages) {
+  try {
+    sessionStorage.setItem(messagesStorageKey(companyId), JSON.stringify(messages));
+  } catch {
+    // Armazenamento indisponível ou cheio — ignora silenciosamente.
+  }
+}
+
 export default function App({ company, profile, onSwitchCompany, onSignOut }) {
   const [active, setActive] = useState("sancho");
-  const [messages, setMessages] = useState({ sancho: [], savio: [], sandra: [] });
+  const [messages, setMessages] = useState(() => loadStoredMessages(company?.id));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [pendingFiles, setPendingFiles] = useState([]); // [{name, attachment}]
@@ -48,7 +73,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
   const fileInputRef = useRef(null);
 
   const persona = PERSONAS[active];
-  const thread = messages[active];
+  const thread = messages[active] || [];
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -57,6 +82,10 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
   useEffect(() => {
     if (company?.id) loadDocuments();
   }, [company?.id]);
+
+  useEffect(() => {
+    if (company?.id) saveStoredMessages(company.id, messages);
+  }, [messages, company?.id]);
 
   async function loadDocuments() {
     const { data } = await supabase
