@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   BarChart3,
   RefreshCw,
@@ -54,22 +54,22 @@ function percent(v) {
   return (v * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%";
 }
 
-const TABS = [
+const SECTIONS = [
   { key: "overview", label: "Visão Geral", icon: TrendingUp },
   { key: "indicators", label: "Indicadores", icon: ListChecks },
   { key: "statements", label: "DRE & Balanço", icon: FileSpreadsheet },
+  { key: "profile", label: "Empresa", icon: Building2 },
   { key: "news", label: "Comunicados", icon: Megaphone },
   { key: "events", label: "Calendário", icon: CalendarDays },
-  { key: "profile", label: "Empresa", icon: Building2 },
 ];
 
 export default function Dashboard({ company, profile }) {
-  const [tab, setTab] = useState("overview");
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [extracting, setExtracting] = useState(false);
   const [extractMsg, setExtractMsg] = useState("");
   const isAdmin = profile?.is_super_admin;
+  const sectionRefs = useRef({});
 
   useEffect(() => {
     if (company?.id) loadEntries();
@@ -115,6 +115,10 @@ export default function Dashboard({ company, profile }) {
     }
   }
 
+  function scrollTo(key) {
+    sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   const chartData = entries.map((e) => ({
     period: e.period,
     receita_liquida: e.metrics?.receita_liquida ?? null,
@@ -126,8 +130,13 @@ export default function Dashboard({ company, profile }) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowY: "auto" }}>
+      {/* Cabeçalho fixo com navegação rápida */}
       <div
         style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 5,
+          background: "#1B2430",
           padding: "16px 22px 0 22px",
           borderBottom: "1px solid rgba(237,234,227,0.08)",
         }}
@@ -162,29 +171,28 @@ export default function Dashboard({ company, profile }) {
         </div>
 
         <div style={{ display: "flex", gap: "4px", overflowX: "auto" }}>
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            const active = tab === t.key;
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
             return (
               <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
+                key={s.key}
+                onClick={() => scrollTo(s.key)}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: "6px",
                   padding: "8px 12px",
                   border: "none",
-                  borderBottom: active ? "2px solid #C9A227" : "2px solid transparent",
+                  borderBottom: "2px solid transparent",
                   background: "none",
-                  color: active ? "#C9A227" : "rgba(237,234,227,0.6)",
+                  color: "rgba(237,234,227,0.6)",
                   fontSize: "12.5px",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
                   flexShrink: 0,
                 }}
               >
-                <Icon size={13} /> {t.label}
+                <Icon size={13} /> {s.label}
               </button>
             );
           })}
@@ -195,16 +203,49 @@ export default function Dashboard({ company, profile }) {
         <div style={{ padding: "10px 22px 0 22px", fontSize: "12.5px", color: "rgba(237,234,227,0.6)" }}>{extractMsg}</div>
       )}
 
-      <div style={{ padding: "20px 22px", flex: 1 }}>
+      <div style={{ padding: "20px 22px 60px 22px", flex: 1 }}>
         {loading && <div style={{ fontSize: "13px", color: "rgba(237,234,227,0.5)" }}>Carregando…</div>}
 
-        {!loading && tab === "overview" && <Overview entries={entries} chartData={chartData} />}
-        {!loading && tab === "indicators" && <Indicators entries={entries} />}
-        {!loading && tab === "statements" && <Statements entries={entries} />}
-        {!loading && tab === "news" && <NewsFeed company={company} canPost={isAdmin} />}
-        {!loading && tab === "events" && <EventsCalendar company={company} canPost={isAdmin} />}
-        {!loading && tab === "profile" && <CompanyProfile company={company} canEdit={isAdmin} />}
+        {!loading && (
+          <>
+            <SectionBlock innerRef={(el) => (sectionRefs.current.overview = el)} title="Visão Geral" icon={TrendingUp}>
+              <Overview entries={entries} chartData={chartData} />
+            </SectionBlock>
+
+            <SectionBlock innerRef={(el) => (sectionRefs.current.indicators = el)} title="Indicadores" icon={ListChecks}>
+              <Indicators entries={entries} />
+            </SectionBlock>
+
+            <SectionBlock innerRef={(el) => (sectionRefs.current.statements = el)} title="DRE & Balanço" icon={FileSpreadsheet}>
+              <Statements entries={entries} />
+            </SectionBlock>
+
+            <SectionBlock innerRef={(el) => (sectionRefs.current.profile = el)} title="Empresa" icon={Building2}>
+              <CompanyProfile company={company} canEdit={isAdmin} />
+            </SectionBlock>
+
+            <SectionBlock innerRef={(el) => (sectionRefs.current.news = el)} title="Comunicados" icon={Megaphone}>
+              <NewsFeed company={company} canPost={isAdmin} />
+            </SectionBlock>
+
+            <SectionBlock innerRef={(el) => (sectionRefs.current.events = el)} title="Calendário" icon={CalendarDays} last>
+              <EventsCalendar company={company} canPost={isAdmin} />
+            </SectionBlock>
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+function SectionBlock({ innerRef, title, icon: Icon, children, last }) {
+  return (
+    <div ref={innerRef} style={{ marginBottom: last ? 0 : "40px", scrollMarginTop: "120px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+        <Icon size={15} color="#C9A227" />
+        <div style={{ fontSize: "15px", fontWeight: 600 }}>{title}</div>
+      </div>
+      {children}
     </div>
   );
 }
@@ -217,7 +258,7 @@ function Overview({ entries, chartData }) {
   }
   return (
     <>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "28px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
         {["receita_liquida", "ebitda", "lucro_liquido", "caixa"].map((key) => {
           const last = entries[entries.length - 1]?.metrics?.[key];
           return (
@@ -244,7 +285,7 @@ function Overview({ entries, chartData }) {
         </BarChart>
       </ChartCard>
 
-      <ChartCard title="EBITDA e Caixa ao longo do tempo">
+      <ChartCard title="EBITDA e Caixa ao longo do tempo" last>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(237,234,227,0.08)" />
           <XAxis dataKey="period" stroke="rgba(237,234,227,0.5)" fontSize={11} />
@@ -321,14 +362,14 @@ function Statements({ entries }) {
   return (
     <>
       <StatementTable title="DRE — Demonstrativo de Resultados" labels={DRE_LABELS} entries={entries} />
-      <StatementTable title="Balanço Patrimonial" labels={BALANCE_LABELS} entries={entries} />
+      <StatementTable title="Balanço Patrimonial" labels={BALANCE_LABELS} entries={entries} last />
     </>
   );
 }
 
-function StatementTable({ title, labels, entries }) {
+function StatementTable({ title, labels, entries, last }) {
   return (
-    <div style={{ marginBottom: "24px" }}>
+    <div style={{ marginBottom: last ? 0 : "24px" }}>
       <div style={{ fontSize: "12.5px", color: "rgba(237,234,227,0.7)", marginBottom: "10px" }}>{title}</div>
       <div style={{ overflowX: "auto", background: "#161D27", border: "1px solid rgba(237,234,227,0.08)", borderRadius: "10px" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
@@ -714,20 +755,23 @@ function EmptyState({ text }) {
         gap: "10px",
         color: "rgba(237,234,227,0.5)",
         fontSize: "13px",
-        padding: "60px 20px",
+        padding: "40px 20px",
         textAlign: "center",
+        background: "#161D27",
+        border: "1px solid rgba(237,234,227,0.08)",
+        borderRadius: "10px",
       }}
     >
-      <TrendingUp size={28} color="rgba(237,234,227,0.3)" />
+      <TrendingUp size={24} color="rgba(237,234,227,0.3)" />
       {text ||
         'Nenhum dado financeiro ainda. Envie documentos (DRE, Balanço) na aba de Documentos do chat e clique em "Atualizar dos documentos".'}
     </div>
   );
 }
 
-function ChartCard({ title, children }) {
+function ChartCard({ title, children, last }) {
   return (
-    <div style={{ background: "#161D27", border: "1px solid rgba(237,234,227,0.08)", borderRadius: "10px", padding: "16px", marginBottom: "20px" }}>
+    <div style={{ background: "#161D27", border: "1px solid rgba(237,234,227,0.08)", borderRadius: "10px", padding: "16px", marginBottom: last ? 0 : "20px" }}>
       <div style={{ fontSize: "12.5px", color: "rgba(237,234,227,0.7)", marginBottom: "10px" }}>{title}</div>
       <ResponsiveContainer width="100%" height={240}>
         {children}
