@@ -385,7 +385,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
       </div>
 
       {active === "dashboard" ? (
-        <Dashboard company={company} />
+        <Dashboard company={company} profile={profile} />
       ) : (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <div
