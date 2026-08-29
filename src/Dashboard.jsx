@@ -79,7 +79,7 @@ export default function Dashboard({ company, profile }) {
     setLoading(true);
     const { data } = await supabase
       .from("financial_entries")
-      .select("id, period, metrics")
+      .select("id, period, metrics, is_projection, source_label")
       .eq("company_id", company.id)
       .order("period");
     setEntries(data || []);
@@ -119,7 +119,10 @@ export default function Dashboard({ company, profile }) {
     sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const chartData = entries.map((e) => ({
+  const realized = entries.filter((e) => !e.is_projection);
+  const projected = entries.filter((e) => e.is_projection);
+
+  const chartData = realized.map((e) => ({
     period: e.period,
     receita_liquida: e.metrics?.receita_liquida ?? null,
     lucro_bruto: e.metrics?.lucro_bruto ?? null,
@@ -209,15 +212,15 @@ export default function Dashboard({ company, profile }) {
         {!loading && (
           <>
             <SectionBlock innerRef={(el) => (sectionRefs.current.overview = el)} title="Visão Geral" icon={TrendingUp}>
-              <Overview entries={entries} chartData={chartData} />
+              <Overview entries={realized} chartData={chartData} />
             </SectionBlock>
 
             <SectionBlock innerRef={(el) => (sectionRefs.current.indicators = el)} title="Indicadores" icon={ListChecks}>
-              <Indicators entries={entries} />
+              <Indicators entries={realized} />
             </SectionBlock>
 
             <SectionBlock innerRef={(el) => (sectionRefs.current.statements = el)} title="DRE & Balanço" icon={FileSpreadsheet}>
-              <Statements entries={entries} />
+              <Statements realized={realized} projected={projected} />
             </SectionBlock>
 
             <SectionBlock innerRef={(el) => (sectionRefs.current.profile = el)} title="Empresa" icon={Building2}>
@@ -254,10 +257,13 @@ function SectionBlock({ innerRef, title, icon: Icon, children, last }) {
 
 function Overview({ entries, chartData }) {
   if (entries.length === 0) {
-    return <EmptyState />;
+    return <EmptyState text='Nenhum dado realizado ainda. Envie documentos (DRE, Balanço fechado) e clique em "Atualizar dos documentos".' />;
   }
   return (
     <>
+      <div style={{ fontSize: "11px", color: "rgba(237,234,227,0.4)", marginBottom: "14px" }}>
+        Mostrando apenas resultados <strong style={{ color: "rgba(237,234,227,0.6)" }}>realizados</strong>. Projeções (ex: DCF) ficam em "DRE & Balanço", separadas.
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
         {["receita_liquida", "ebitda", "lucro_liquido", "caixa"].map((key) => {
           const last = entries[entries.length - 1]?.metrics?.[key];
@@ -357,21 +363,46 @@ function Indicators({ entries }) {
 
 /* ---------------- DRE & Balanço ---------------- */
 
-function Statements({ entries }) {
-  if (entries.length === 0) return <EmptyState />;
+function Statements({ realized, projected }) {
+  if (realized.length === 0 && projected.length === 0) return <EmptyState />;
   return (
     <>
-      <StatementTable title="DRE — Demonstrativo de Resultados" labels={DRE_LABELS} entries={entries} />
-      <StatementTable title="Balanço Patrimonial" labels={BALANCE_LABELS} entries={entries} last />
+      {realized.length > 0 && (
+        <>
+          <StatementTable title="DRE — Realizado" labels={DRE_LABELS} entries={realized} badge="realizado" />
+          <StatementTable title="Balanço Patrimonial — Realizado" labels={BALANCE_LABELS} entries={realized} badge="realizado" />
+        </>
+      )}
+      {realized.length === 0 && (
+        <div style={{ marginBottom: "20px" }}>
+          <EmptyState text="Nenhum dado realizado (fechado/auditado) extraído ainda." />
+        </div>
+      )}
+
+      {projected.length > 0 && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", margin: "24px 0 10px 0" }}>
+            <span style={projectionBadgeStyle}>PROJETADO</span>
+            <span style={{ fontSize: "11px", color: "rgba(237,234,227,0.45)" }}>
+              Estimativas extraídas de documentos como DCF/valuation — ainda não realizadas.
+            </span>
+          </div>
+          <StatementTable title="DRE — Projetado" labels={DRE_LABELS} entries={projected} badge="projetado" />
+          <StatementTable title="Balanço Patrimonial — Projetado" labels={BALANCE_LABELS} entries={projected} badge="projetado" last />
+        </>
+      )}
     </>
   );
 }
 
-function StatementTable({ title, labels, entries, last }) {
+function StatementTable({ title, labels, entries, last, badge }) {
   return (
     <div style={{ marginBottom: last ? 0 : "24px" }}>
-      <div style={{ fontSize: "12.5px", color: "rgba(237,234,227,0.7)", marginBottom: "10px" }}>{title}</div>
-      <div style={{ overflowX: "auto", background: "#161D27", border: "1px solid rgba(237,234,227,0.08)", borderRadius: "10px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+        <div style={{ fontSize: "12.5px", color: "rgba(237,234,227,0.7)" }}>{title}</div>
+        {badge === "projetado" && <span style={projectionBadgeSmallStyle}>projeção</span>}
+      </div>
+      <div style={{ overflowX: "auto", background: "#161D27", border: badge === "projetado" ? "1px dashed rgba(178,92,69,0.4)" : "1px solid rgba(237,234,227,0.08)", borderRadius: "10px" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(237,234,227,0.1)" }}>
@@ -852,4 +883,23 @@ const iconButtonStyle = {
   cursor: "pointer",
   display: "flex",
   padding: "2px",
+};
+
+const projectionBadgeStyle = {
+  background: "rgba(178,92,69,0.16)",
+  border: "1px solid rgba(178,92,69,0.35)",
+  color: "#D98A6E",
+  fontSize: "10px",
+  fontWeight: 700,
+  letterSpacing: "0.04em",
+  padding: "3px 8px",
+  borderRadius: "4px",
+};
+
+const projectionBadgeSmallStyle = {
+  background: "rgba(178,92,69,0.14)",
+  color: "#D98A6E",
+  fontSize: "10px",
+  padding: "2px 7px",
+  borderRadius: "4px",
 };
