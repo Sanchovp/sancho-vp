@@ -3,7 +3,7 @@ import { Crown } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 
 export default function Login() {
-  const [mode, setMode] = useState("signin"); // "signin" | "signup"
+  const [mode, setMode] = useState("signin"); // "signin" | "signup" | "reset"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -20,6 +20,12 @@ export default function Login() {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+      } else if (mode === "reset") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        });
+        if (error) throw error;
+        setNotice("Se esse e-mail estiver cadastrado, enviamos um link para redefinir a senha.");
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -99,15 +105,17 @@ export default function Login() {
             required
             style={inputStyle}
           />
-          <input
-            type="password"
-            placeholder="Senha"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            style={inputStyle}
-          />
+          {mode !== "reset" && (
+            <input
+              type="password"
+              placeholder="Senha"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              style={inputStyle}
+            />
+          )}
 
           {error && <div style={{ fontSize: "12.5px", color: "#E07856" }}>{error}</div>}
           {notice && <div style={{ fontSize: "12.5px", color: "#7FB08A" }}>{notice}</div>}
@@ -128,25 +136,39 @@ export default function Login() {
               opacity: loading ? 0.6 : 1,
             }}
           >
-            {loading ? "Aguarde…" : mode === "signin" ? "Entrar" : "Criar conta"}
+            {loading ? "Aguarde…" : mode === "signin" ? "Entrar" : mode === "reset" ? "Enviar link" : "Criar conta"}
           </button>
         </form>
 
+        {mode === "signin" && (
+          <div style={{ marginTop: "10px", textAlign: "center" }}>
+            <button onClick={() => { setMode("reset"); setError(""); setNotice(""); }} style={{ ...linkStyle, fontSize: "12px" }}>
+              Esqueceu a senha?
+            </button>
+          </div>
+        )}
+
         <div style={{ marginTop: "18px", fontSize: "12.5px", color: "rgba(237,234,227,0.55)", textAlign: "center" }}>
-          {mode === "signin" ? (
+          {mode === "signin" && (
             <>
               Ainda não tem conta?{" "}
               <button onClick={() => { setMode("signup"); setError(""); setNotice(""); }} style={linkStyle}>
                 Criar agora
               </button>
             </>
-          ) : (
+          )}
+          {mode === "signup" && (
             <>
               Já tem conta?{" "}
               <button onClick={() => { setMode("signin"); setError(""); setNotice(""); }} style={linkStyle}>
                 Entrar
               </button>
             </>
+          )}
+          {mode === "reset" && (
+            <button onClick={() => { setMode("signin"); setError(""); setNotice(""); }} style={linkStyle}>
+              Voltar para o login
+            </button>
           )}
         </div>
       </div>
