@@ -16,27 +16,39 @@ export default function Login() {
     setError("");
     setNotice("");
     setLoading(true);
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("TIMEOUT")), 15000)
+    );
+
     try {
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await Promise.race([
+          supabase.auth.signInWithPassword({ email, password }),
+          timeoutPromise,
+        ]);
         if (error) throw error;
       } else if (mode === "reset") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin,
-        });
+        const { error } = await Promise.race([
+          supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin }),
+          timeoutPromise,
+        ]);
         if (error) throw error;
         setNotice("Se esse e-mail estiver cadastrado, enviamos um link para redefinir a senha.");
       } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { full_name: fullName } },
-        });
+        const { error } = await Promise.race([
+          supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } }),
+          timeoutPromise,
+        ]);
         if (error) throw error;
         setNotice("Conta criada. Verifique seu e-mail para confirmar o acesso, se necessário.");
       }
     } catch (err) {
-      setError(traduzErro(err.message));
+      if (err.message === "TIMEOUT") {
+        setError("A conexão demorou demais. Verifique sua internet e tente novamente.");
+      } else {
+        setError(traduzErro(err.message));
+      }
     } finally {
       setLoading(false);
     }
