@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Crown, Calculator, CalendarClock, Building2, LogOut, Paperclip, X, FileText } from "lucide-react";
+import { Send, Crown, Calculator, CalendarClock, Building2, LogOut, Paperclip, X, FileText, BarChart3 } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import { fileToAttachment } from "./lib/fileToAttachment";
+import Dashboard from "./Dashboard";
 
 // Chave pública (anon) do projeto Supabase — segura para expor no front-end.
 // A chave da Anthropic fica só no servidor, dentro da Edge Function.
@@ -314,9 +315,49 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
             </button>
           );
         })}
+
+        <div style={{ height: "1px", background: "rgba(237,234,227,0.08)", margin: "10px 8px" }} />
+
+        <button
+          onClick={() => setActive("dashboard")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "10px 10px",
+            borderRadius: "8px",
+            border: "none",
+            background: active === "dashboard" ? "rgba(201,162,39,0.14)" : "transparent",
+            color: active === "dashboard" ? "#C9A227" : "rgba(237,234,227,0.75)",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <span
+            style={{
+              width: "30px",
+              height: "30px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: active === "dashboard" ? "#C9A227" : "rgba(237,234,227,0.08)",
+              color: active === "dashboard" ? "#161D27" : "rgba(237,234,227,0.6)",
+              flexShrink: 0,
+            }}
+          >
+            <BarChart3 size={15} />
+          </span>
+          <span>
+            <div style={{ fontSize: "13.5px", fontWeight: 600 }}>Dashboard</div>
+            <div style={{ fontSize: "10.5px", opacity: 0.75 }}>Financeiro</div>
+          </span>
+        </button>
       </div>
 
-      {/* Chat panel */}
+      {active === "dashboard" ? (
+        <Dashboard company={company} />
+      ) : (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <div
           style={{
@@ -478,6 +519,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
           </div>
         </div>
       </div>
+      )}
       </div>
     </div>
   );
