@@ -736,6 +736,18 @@ function TeamManagement({ company, profile }) {
     load();
   }
 
+  async function resendInvite(memberEmail) {
+    setMsg("");
+    const { error } = await supabase.auth.resetPasswordForEmail(memberEmail, {
+      redirectTo: window.location.origin,
+    });
+    if (error) {
+      setMsg("Erro ao reenviar: " + error.message);
+    } else {
+      setMsg(`Link de acesso reenviado para ${memberEmail}.`);
+    }
+  }
+
   if (loading) return null;
 
   return (
@@ -772,6 +784,9 @@ function TeamManagement({ company, profile }) {
               <div style={{ fontSize: "11.5px", color: "rgba(237,234,227,0.5)" }}>{m.email}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <button onClick={() => resendInvite(m.email)} style={iconButtonStyle} title="Reenviar convite / link de acesso">
+                <Mail size={13} />
+              </button>
               {canManage ? (
                 <select
                   value={m.role}
