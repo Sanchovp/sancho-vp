@@ -10,9 +10,13 @@ export default function AuthGate({ children }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
-      setCompany(null);
+      // Só reseta a empresa selecionada em login/logout de verdade,
+      // não em renovações silenciosas de token (ex: ao voltar pra aba).
+      if (event === "SIGNED_OUT" || event === "SIGNED_IN") {
+        setCompany(null);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
