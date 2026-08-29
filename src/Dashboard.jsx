@@ -8,9 +8,11 @@ import {
   Megaphone,
   CalendarDays,
   Building2,
+  Users,
   Plus,
   Trash2,
   Pencil,
+  Mail,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -27,6 +29,7 @@ import {
 import { supabase, SUPABASE_ANON_KEY } from "./lib/supabaseClient";
 
 const EXTRACT_FN_URL = "https://rwgjcshisoljccikhtgq.supabase.co/functions/v1/extract-financials";
+const TEAM_FN_URL = "https://rwgjcshisoljccikhtgq.supabase.co/functions/v1/manage-team";
 
 const DRE_LABELS = {
   receita_liquida: "Receita Líquida",
@@ -59,6 +62,7 @@ const SECTIONS = [
   { key: "indicators", label: "Indicadores", icon: ListChecks },
   { key: "statements", label: "DRE & Balanço", icon: FileSpreadsheet },
   { key: "profile", label: "Empresa", icon: Building2 },
+  { key: "team", label: "Equipe", icon: Users },
   { key: "news", label: "Comunicados", icon: Megaphone },
   { key: "events", label: "Calendário", icon: CalendarDays },
 ];
@@ -225,6 +229,10 @@ export default function Dashboard({ company, profile }) {
 
             <SectionBlock innerRef={(el) => (sectionRefs.current.profile = el)} title="Empresa" icon={Building2}>
               <CompanyProfile company={company} canEdit={isAdmin} />
+            </SectionBlock>
+
+            <SectionBlock innerRef={(el) => (sectionRefs.current.team = el)} title="Equipe" icon={Users}>
+              <TeamManagement company={company} profile={profile} />
             </SectionBlock>
 
             <SectionBlock innerRef={(el) => (sectionRefs.current.news = el)} title="Comunicados" icon={Megaphone}>
@@ -654,6 +662,137 @@ function EventRow({ ev, canPost, onDelete }) {
           <Trash2 size={13} />
         </button>
       )}
+    </div>
+  );
+}
+
+/* ---------------- Equipe ---------------- */
+
+const ROLE_LABELS = { admin: "Administrador", member: "Membro" };
+
+function TeamManagement({ company, profile }) {
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [canManage, setCanManage] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("member");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    load();
+  }, [company?.id]);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase.rpc("list_company_members", { p_company_id: company.id });
+    if (!error) setMembers(data || []);
+    const myRow = (data || []).find((m) => m.user_id === profile.id);
+    setCanManage(Boolean(profile?.is_super_admin) || myRow?.role === "admin");
+    setLoading(false);
+  }
+
+  async function callTeamFn(body) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch(TEAM_FN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+        apikey: SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+
+  async function invite(e) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setSaving(true);
+    setMsg("");
+    const result = await callTeamFn({ action: "invite", company_id: company.id, email: email.trim(), role });
+    if (result.error) {
+      setMsg("Erro: " + result.error);
+    } else {
+      setMsg(result.invited ? `Convite enviado para ${email.trim()}.` : `${email.trim()} adicionado à equipe.`);
+      setEmail("");
+      setRole("member");
+      setShowForm(false);
+      load();
+    }
+    setSaving(false);
+  }
+
+  async function updateRole(userId, newRole) {
+    await callTeamFn({ action: "update_role", company_id: company.id, user_id: userId, role: newRole });
+    load();
+  }
+
+  async function remove(userId) {
+    await callTeamFn({ action: "remove", company_id: company.id, user_id: userId });
+    load();
+  }
+
+  if (loading) return null;
+
+  return (
+    <div>
+      {msg && <div style={{ fontSize: "12px", color: "rgba(237,234,227,0.6)", marginBottom: "12px" }}>{msg}</div>}
+
+      {canManage && (
+        <div style={{ marginBottom: "16px" }}>
+          {!showForm ? (
+            <button onClick={() => setShowForm(true)} style={addButtonStyle}>
+              <Mail size={13} /> Convidar pessoa
+            </button>
+          ) : (
+            <form onSubmit={invite} style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: "8px", maxWidth: "420px" }}>
+              <input type="email" placeholder="E-mail da pessoa" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} />
+              <select value={role} onChange={(e) => setRole(e.target.value)} style={inputStyle}>
+                <option value="member">Membro</option>
+                <option value="admin">Administrador</option>
+              </select>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button type="submit" disabled={saving} style={saveButtonStyle}>{saving ? "Enviando…" : "Convidar"}</button>
+                <button type="button" onClick={() => setShowForm(false)} style={cancelButtonStyle}>Cancelar</button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {members.map((m) => (
+          <div key={m.user_id} style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: 600 }}>{m.full_name || m.email}</div>
+              <div style={{ fontSize: "11.5px", color: "rgba(237,234,227,0.5)" }}>{m.email}</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {canManage ? (
+                <select
+                  value={m.role}
+                  onChange={(e) => updateRole(m.user_id, e.target.value)}
+                  style={{ ...inputStyle, padding: "5px 8px", fontSize: "11.5px" }}
+                >
+                  <option value="member">Membro</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              ) : (
+                <span style={{ fontSize: "11.5px", color: "rgba(237,234,227,0.5)" }}>{ROLE_LABELS[m.role]}</span>
+              )}
+              {canManage && (
+                <button onClick={() => remove(m.user_id)} style={iconButtonStyle} title="Remover">
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
