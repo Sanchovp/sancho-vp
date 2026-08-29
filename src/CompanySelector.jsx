@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { Building2, LogOut } from "lucide-react";
+import { Building2, LogOut, Plus } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 
 export default function CompanySelector({ profile, onSelect, onSignOut }) {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   useEffect(() => {
     loadCompanies();
@@ -19,6 +23,30 @@ export default function CompanySelector({ profile, onSelect, onSignOut }) {
     if (error) setError(error.message);
     setCompanies(data || []);
     setLoading(false);
+  }
+
+  async function createCompany(e) {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setCreating(true);
+    setCreateError("");
+    const { data: company, error } = await supabase
+      .from("companies")
+      .insert({ name: newName.trim() })
+      .select()
+      .single();
+    if (error) {
+      setCreateError(error.message);
+      setCreating(false);
+      return;
+    }
+    // Vincula quem criou como admin dessa empresa
+    await supabase.from("company_members").insert({ user_id: profile.id, company_id: company.id, role: "admin" });
+    setCreating(false);
+    setShowForm(false);
+    setNewName("");
+    await loadCompanies();
+    onSelect(company);
   }
 
   return (
@@ -73,13 +101,13 @@ export default function CompanySelector({ profile, onSelect, onSignOut }) {
         {loading && <div style={{ fontSize: "13px", color: "rgba(237,234,227,0.5)" }}>Carregando empresas…</div>}
         {error && <div style={{ fontSize: "13px", color: "#E07856" }}>{error}</div>}
 
-        {!loading && !error && companies.length === 0 && (
+        {!loading && !error && companies.length === 0 && !profile?.is_super_admin && (
           <div style={{ fontSize: "13px", color: "rgba(237,234,227,0.5)" }}>
             Nenhuma empresa vinculada à sua conta ainda. Peça a um administrador para te adicionar.
           </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: profile?.is_super_admin ? "14px" : 0 }}>
           {companies.map((c) => (
             <button
               key={c.id}
@@ -104,6 +132,89 @@ export default function CompanySelector({ profile, onSelect, onSignOut }) {
             </button>
           ))}
         </div>
+
+        {profile?.is_super_admin && (
+          <>
+            {!showForm ? (
+              <button
+                onClick={() => setShowForm(true)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "rgba(201,162,39,0.14)",
+                  border: "1px solid rgba(201,162,39,0.3)",
+                  borderRadius: "8px",
+                  padding: "10px 14px",
+                  fontSize: "12.5px",
+                  color: "#C9A227",
+                  cursor: "pointer",
+                  width: "100%",
+                  justifyContent: "center",
+                }}
+              >
+                <Plus size={14} /> Nova empresa
+              </button>
+            ) : (
+              <form onSubmit={createCompany} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <input
+                  type="text"
+                  placeholder="Nome da empresa (ex: Educon FGV)"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  required
+                  autoFocus
+                  style={{
+                    background: "rgba(237,234,227,0.06)",
+                    border: "1px solid rgba(237,234,227,0.12)",
+                    borderRadius: "8px",
+                    color: "#EDEAE3",
+                    padding: "10px 12px",
+                    fontSize: "13px",
+                    fontFamily: "inherit",
+                    outline: "none",
+                  }}
+                />
+                {createError && <div style={{ fontSize: "12px", color: "#E07856" }}>{createError}</div>}
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="submit"
+                    disabled={creating}
+                    style={{
+                      flex: 1,
+                      background: "#C9A227",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "9px",
+                      fontSize: "12.5px",
+                      fontWeight: 600,
+                      color: "#161D27",
+                      cursor: creating ? "not-allowed" : "pointer",
+                      opacity: creating ? 0.6 : 1,
+                    }}
+                  >
+                    {creating ? "Criando…" : "Criar e entrar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowForm(false); setNewName(""); setCreateError(""); }}
+                    style={{
+                      background: "none",
+                      border: "1px solid rgba(237,234,227,0.15)",
+                      borderRadius: "8px",
+                      padding: "9px 14px",
+                      fontSize: "12.5px",
+                      color: "rgba(237,234,227,0.7)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
