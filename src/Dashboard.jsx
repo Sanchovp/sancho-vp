@@ -679,33 +679,90 @@ const CHECKLIST_CATEGORIES = {
   bancario: "Bancário",
   contabil_fiscal: "Contábil / Fiscal",
   societario_juridico: "Societário / Jurídico",
+  comercial: "Comercial / Vendas",
   operacional: "Operacional",
   rh: "Recursos Humanos",
+  seguros: "Seguros",
+  ti: "TI / Sistemas",
+  estrategico: "Estratégico / Governança",
   outro: "Outro",
 };
 
+const PRIORITY_LABELS = { alta: "Alta", media: "Média", baixa: "Baixa" };
+const PRIORITY_ORDER = { alta: 0, media: 1, baixa: 2 };
+const PRIORITY_COLORS = { alta: "#B25C45", media: "#C9A227", baixa: "rgba(237,234,227,0.4)" };
+
+const CURRENT_YEAR = new Date().getFullYear();
+const Y1 = String(CURRENT_YEAR);
+const Y2 = String(CURRENT_YEAR - 1);
+const Y3 = String(CURRENT_YEAR - 2);
+
 const DEFAULT_CHECKLIST = [
-  { category: "contas_consumo", label: "Conta de luz (mês corrente)" },
-  { category: "contas_consumo", label: "Conta de água" },
-  { category: "contas_consumo", label: "Conta de internet/telefone" },
-  { category: "contas_consumo", label: "Conta de gás (se aplicável)" },
-  { category: "bancario", label: "Extratos bancários de todas as contas (mês corrente)" },
-  { category: "bancario", label: "Extrato de cartão de crédito empresarial" },
-  { category: "bancario", label: "Conciliação bancária do mês" },
-  { category: "contabil_fiscal", label: "Balancete mensal" },
-  { category: "contabil_fiscal", label: "Livro caixa" },
-  { category: "contabil_fiscal", label: "Guias de impostos pagas (DAS/DARF/ICMS/ISS)" },
-  { category: "contabil_fiscal", label: "Declarações fiscais (DEFIS, ECF, conforme porte)" },
-  { category: "contabil_fiscal", label: "Guias de FGTS e INSS" },
-  { category: "societario_juridico", label: "Contrato social atualizado" },
-  { category: "societario_juridico", label: "Alterações contratuais recentes" },
-  { category: "societario_juridico", label: "Certidões negativas (federal, estadual, municipal)" },
-  { category: "societario_juridico", label: "Certidão negativa de débitos trabalhistas (CNDT)" },
-  { category: "operacional", label: "Notas fiscais emitidas do mês" },
-  { category: "operacional", label: "Notas fiscais de compras/despesas relevantes" },
-  { category: "operacional", label: "Contratos vigentes com fornecedores/clientes relevantes" },
-  { category: "rh", label: "Relação de funcionários ativos" },
-  { category: "rh", label: "Contratos de trabalho novos / rescisões do período" },
+  // Contas de Consumo — recorrentes, sempre prioridade alta (visão de caixa atual)
+  { category: "contas_consumo", label: "Conta de luz (mês atual)", priority: "alta", period: "recorrente" },
+  { category: "contas_consumo", label: "Conta de água (mês atual)", priority: "alta", period: "recorrente" },
+  { category: "contas_consumo", label: "Comprovante de aluguel (mês atual)", priority: "alta", period: "recorrente" },
+  { category: "contas_consumo", label: "Conta de internet/telefone (mês atual)", priority: "media", period: "recorrente" },
+  { category: "contas_consumo", label: "Conta de gás (se aplicável)", priority: "baixa", period: "recorrente" },
+
+  // Bancário
+  { category: "bancario", label: "Extratos bancários de todas as contas (mês atual)", priority: "alta", period: "recorrente" },
+  { category: "bancario", label: "Extrato de cartão de crédito empresarial (mês atual)", priority: "alta", period: "recorrente" },
+  { category: "bancario", label: "Extratos bancários dos últimos 12 meses", priority: "media", period: "histórico" },
+  { category: "bancario", label: "Contratos de empréstimo/financiamento ativos", priority: "alta", period: Y1 },
+  { category: "bancario", label: "Aplicações financeiras e investimentos", priority: "media", period: Y1 },
+
+  // Contábil / Fiscal — ano atual prioridade alta, anos anteriores para análise histórica
+  { category: "contabil_fiscal", label: "Balancete mensal (mês atual)", priority: "alta", period: "recorrente" },
+  { category: "contabil_fiscal", label: `Balanço Patrimonial ${Y1}`, priority: "alta", period: Y1 },
+  { category: "contabil_fiscal", label: `Balanço Patrimonial ${Y2}`, priority: "media", period: Y2 },
+  { category: "contabil_fiscal", label: `Balanço Patrimonial ${Y3}`, priority: "baixa", period: Y3 },
+  { category: "contabil_fiscal", label: `DRE ${Y1}`, priority: "alta", period: Y1 },
+  { category: "contabil_fiscal", label: `DRE ${Y2}`, priority: "media", period: Y2 },
+  { category: "contabil_fiscal", label: `DRE ${Y3}`, priority: "baixa", period: Y3 },
+  { category: "contabil_fiscal", label: "Livro caixa (mês atual)", priority: "alta", period: "recorrente" },
+  { category: "contabil_fiscal", label: "Guias de impostos pagas (DAS/DARF/ICMS/ISS) do mês atual", priority: "alta", period: "recorrente" },
+  { category: "contabil_fiscal", label: `Declarações fiscais do último exercício (DEFIS/ECF/SPED)`, priority: "media", period: Y2 },
+  { category: "contabil_fiscal", label: "Guias de FGTS e INSS (mês atual)", priority: "alta", period: "recorrente" },
+
+  // Societário / Jurídico
+  { category: "societario_juridico", label: "Contrato social atualizado", priority: "alta", period: "atual" },
+  { category: "societario_juridico", label: "Alterações contratuais recentes", priority: "media", period: "atual" },
+  { category: "societario_juridico", label: "Certidões negativas (federal, estadual, municipal)", priority: "alta", period: "atual" },
+  { category: "societario_juridico", label: "Certidão negativa de débitos trabalhistas (CNDT)", priority: "media", period: "atual" },
+  { category: "societario_juridico", label: "Processos judiciais em andamento", priority: "media", period: "atual" },
+  { category: "societario_juridico", label: "Acordo de sócios", priority: "baixa", period: "atual" },
+
+  // Comercial / Vendas
+  { category: "comercial", label: "Relatório de vendas (mês atual)", priority: "alta", period: "recorrente" },
+  { category: "comercial", label: `Relatório de vendas ${Y2}`, priority: "media", period: Y2 },
+  { category: "comercial", label: "Contratos com principais clientes", priority: "media", period: "atual" },
+  { category: "comercial", label: "Política de preços e descontos", priority: "baixa", period: "atual" },
+
+  // Operacional
+  { category: "operacional", label: "Notas fiscais emitidas do mês", priority: "alta", period: "recorrente" },
+  { category: "operacional", label: "Notas fiscais de compras/despesas relevantes do mês", priority: "media", period: "recorrente" },
+  { category: "operacional", label: "Contratos vigentes com fornecedores", priority: "media", period: "atual" },
+  { category: "operacional", label: "Controle de estoque (se aplicável)", priority: "baixa", period: "recorrente" },
+
+  // Recursos Humanos
+  { category: "rh", label: "Relação de funcionários ativos", priority: "alta", period: "atual" },
+  { category: "rh", label: "Folha de pagamento do mês atual", priority: "alta", period: "recorrente" },
+  { category: "rh", label: "Contratos de trabalho novos / rescisões do período", priority: "media", period: "recorrente" },
+  { category: "rh", label: "Organograma", priority: "baixa", period: "atual" },
+
+  // Seguros
+  { category: "seguros", label: "Apólices de seguro vigentes", priority: "media", period: "atual" },
+  { category: "seguros", label: "Sinistros abertos ou recentes", priority: "baixa", period: "recorrente" },
+
+  // TI / Sistemas
+  { category: "ti", label: "Lista de sistemas/softwares utilizados", priority: "baixa", period: "atual" },
+  { category: "ti", label: "Contratos de licenciamento de software", priority: "baixa", period: "atual" },
+
+  // Estratégico / Governança
+  { category: "estrategico", label: "Plano de negócios / planejamento estratégico vigente", priority: "media", period: "atual" },
+  { category: "estrategico", label: `Metas e KPIs definidos para ${Y1}`, priority: "media", period: Y1 },
+  { category: "estrategico", label: "Atas de reuniões anteriores do conselho/sócios", priority: "baixa", period: "atual" },
 ];
 
 function DocumentChecklist({ company, isAdmin }) {
@@ -714,6 +771,8 @@ function DocumentChecklist({ company, isAdmin }) {
   const [showForm, setShowForm] = useState(false);
   const [label, setLabel] = useState("");
   const [category, setCategory] = useState("outro");
+  const [priority, setPriority] = useState("media");
+  const [period, setPeriod] = useState("");
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
 
@@ -725,7 +784,7 @@ function DocumentChecklist({ company, isAdmin }) {
     setLoading(true);
     const { data } = await supabase
       .from("document_checklist_items")
-      .select("id, category, label, status, notes")
+      .select("id, category, label, status, notes, priority, period")
       .eq("company_id", company.id)
       .order("created_at");
     setItems(data || []);
@@ -736,9 +795,17 @@ function DocumentChecklist({ company, isAdmin }) {
     e.preventDefault();
     if (!label.trim()) return;
     setSaving(true);
-    await supabase.from("document_checklist_items").insert({ company_id: company.id, category, label: label.trim() });
+    await supabase.from("document_checklist_items").insert({
+      company_id: company.id,
+      category,
+      label: label.trim(),
+      priority,
+      period: period.trim() || null,
+    });
     setLabel("");
     setCategory("outro");
+    setPriority("media");
+    setPeriod("");
     setShowForm(false);
     setSaving(false);
     load();
@@ -765,6 +832,8 @@ function DocumentChecklist({ company, isAdmin }) {
       company_id: company.id,
       category: d.category,
       label: d.label,
+      priority: d.priority || "media",
+      period: d.period || null,
     }));
     if (toInsert.length > 0) {
       await supabase.from("document_checklist_items").insert(toInsert);
@@ -775,14 +844,15 @@ function DocumentChecklist({ company, isAdmin }) {
 
   if (loading) return null;
 
-  const pending = items.filter((i) => i.status === "pendente");
-  const received = items.filter((i) => i.status === "recebido");
+  const sortByPriority = (a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1);
+  const pending = items.filter((i) => i.status === "pendente").sort(sortByPriority);
+  const received = items.filter((i) => i.status === "recebido").sort(sortByPriority);
   const groups = [...new Set(items.map((i) => i.category))];
 
   return (
     <div>
       <div style={{ fontSize: "11.5px", color: "rgba(237,234,227,0.45)", marginBottom: "14px" }}>
-        A Sandra usa esta lista automaticamente nas conversas para lembrar o que ainda falta enviar.
+        A Sandra usa esta lista automaticamente nas conversas para lembrar o que ainda falta enviar. Itens de <strong style={{ color: PRIORITY_COLORS.alta }}>prioridade alta</strong> são os mais urgentes; anos anteriores servem de base para análises e projeções.
       </div>
 
       {isAdmin && (
@@ -808,6 +878,19 @@ function DocumentChecklist({ company, isAdmin }) {
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <select value={priority} onChange={(e) => setPriority(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+              {Object.entries(PRIORITY_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>Prioridade {v}</option>
+              ))}
+            </select>
+            <input
+              placeholder="Período (ex: 2026, recorrente)"
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              style={{ ...inputStyle, flex: 1 }}
+            />
+          </div>
           <div style={{ display: "flex", gap: "8px" }}>
             <button type="submit" disabled={saving} style={saveButtonStyle}>{saving ? "Salvando…" : "Adicionar"}</button>
             <button type="button" onClick={() => setShowForm(false)} style={cancelButtonStyle}>Cancelar</button>
@@ -860,11 +943,35 @@ function DocumentChecklist({ company, isAdmin }) {
 function ChecklistRow({ item, isAdmin, onToggle, onDelete }) {
   return (
     <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px" }}>
-      <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px" }}>
-        <input type="checkbox" checked={item.status === "recebido"} onChange={onToggle} />
-        <span style={{ textDecoration: item.status === "recebido" ? "line-through" : "none", color: item.status === "recebido" ? "rgba(237,234,227,0.5)" : "#EDEAE3" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", minWidth: 0 }}>
+        <input type="checkbox" checked={item.status === "recebido"} onChange={onToggle} style={{ flexShrink: 0 }} />
+        <span
+          style={{
+            width: "6px",
+            height: "6px",
+            borderRadius: "50%",
+            background: PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.media,
+            flexShrink: 0,
+          }}
+          title={`Prioridade ${PRIORITY_LABELS[item.priority] || "Média"}`}
+        />
+        <span style={{ textDecoration: item.status === "recebido" ? "line-through" : "none", color: item.status === "recebido" ? "rgba(237,234,227,0.5)" : "#EDEAE3", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {item.label}
         </span>
+        {item.period && (
+          <span
+            style={{
+              fontSize: "10px",
+              color: "rgba(237,234,227,0.45)",
+              background: "rgba(237,234,227,0.06)",
+              padding: "2px 6px",
+              borderRadius: "4px",
+              flexShrink: 0,
+            }}
+          >
+            {item.period}
+          </span>
+        )}
       </label>
       {isAdmin && (
         <button onClick={onDelete} style={iconButtonStyle} title="Remover">
