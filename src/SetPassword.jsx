@@ -7,6 +7,7 @@ export default function SetPassword({ onDone }) {
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [expired, setExpired] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -23,10 +24,63 @@ export default function SetPassword({ onDone }) {
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (error) {
-      setError(error.message);
+      if (error.message?.toLowerCase().includes("auth session missing") || error.message?.toLowerCase().includes("session")) {
+        setExpired(true);
+      } else {
+        setError(error.message);
+      }
       return;
     }
     onDone();
+  }
+
+  if (expired) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#1B2430",
+          fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
+          color: "#EDEAE3",
+          padding: "20px",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: "380px",
+            background: "#161D27",
+            border: "1px solid rgba(237,234,227,0.08)",
+            borderRadius: "12px",
+            padding: "32px 28px",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>Este link já foi usado ou expirou</div>
+          <div style={{ fontSize: "12.5px", color: "rgba(237,234,227,0.6)", lineHeight: 1.6, marginBottom: "20px" }}>
+            Links de acesso funcionam só uma vez. Se você clicou nele mais de uma vez, ou se algum tempo já passou, peça um novo link em "Esqueceu a senha?" na tela de login.
+          </div>
+          <button
+            onClick={() => { window.location.href = window.location.origin; }}
+            style={{
+              background: "#C9A227",
+              border: "none",
+              borderRadius: "8px",
+              padding: "10px 18px",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#161D27",
+              cursor: "pointer",
+            }}
+          >
+            Ir para o login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
