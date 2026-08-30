@@ -94,3 +94,44 @@ body {
 .md-content a {
   color: #C9A227;
 }
+
+/* ---------- Layout responsivo (celular) ---------- */
+@media (max-width: 700px) {
+  .app-main-row {
+    flex-direction: column !important;
+  }
+  .app-sidebar {
+    width: 100% !important;
+    flex-direction: row !important;
+    align-items: center;
+    padding: 8px 10px !important;
+    overflow-x: auto;
+    gap: 4px;
+    flex-shrink: 0 !important;
+  }
+  .app-sidebar-title {
+    display: none;
+  }
+  .app-nav-divider {
+    display: none;
+  }
+  .app-nav-item {
+    flex-shrink: 0;
+    margin-bottom: 0 !important;
+    padding: 8px 10px !important;
+    white-space: nowrap;
+  }
+  .app-nav-item-text {
+    display: flex;
+    align-items: center;
+  }
+  .app-nav-item-text > div:last-child {
+    display: none;
+  }
+  .app-nav-item-text > div:first-child {
+    font-size: 12px !important;
+  }
+  .chat-bubble {
+    max-width: 92% !important;
+  }
+}

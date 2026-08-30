@@ -363,9 +363,10 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
         </div>
       )}
 
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <div className="app-main-row" style={{ display: "flex", flex: 1, minHeight: 0 }}>
       {/* Sidebar */}
       <div
+        className="app-sidebar"
         style={{
           width: "220px",
           flexShrink: 0,
@@ -376,7 +377,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
           padding: "20px 12px",
         }}
       >
-        <div style={{ padding: "0 8px 20px 8px" }}>
+        <div className="app-sidebar-title" style={{ padding: "0 8px 20px 8px" }}>
           <div
             style={{
               fontFamily: "'Fraunces', Georgia, serif",
@@ -399,6 +400,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
           return (
             <button
               key={key}
+              className="app-nav-item"
               onClick={() => setActive(key)}
               style={{
                 display: "flex",
@@ -430,7 +432,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
               >
                 <Icon size={15} />
               </span>
-              <span>
+              <span className="app-nav-item-text">
                 <div style={{ fontSize: "13.5px", fontWeight: 600 }}>{p.name}</div>
                 <div style={{ fontSize: "10.5px", opacity: 0.75 }}>{p.role}</div>
               </span>
@@ -438,9 +440,10 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
           );
         })}
 
-        <div style={{ height: "1px", background: "rgba(237,234,227,0.08)", margin: "10px 8px" }} />
+        <div className="app-nav-divider" style={{ height: "1px", background: "rgba(237,234,227,0.08)", margin: "10px 8px" }} />
 
         <button
+          className="app-nav-item"
           onClick={() => setActive("dashboard")}
           style={{
             display: "flex",
@@ -470,13 +473,14 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
           >
             <BarChart3 size={15} />
           </span>
-          <span>
+          <span className="app-nav-item-text">
             <div style={{ fontSize: "13.5px", fontWeight: 600 }}>Dashboard</div>
             <div style={{ fontSize: "10.5px", opacity: 0.75 }}>Financeiro</div>
           </span>
         </button>
 
         <button
+          className="app-nav-item"
           onClick={() => setActive("documents")}
           style={{
             display: "flex",
@@ -507,7 +511,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
           >
             <FileStack size={15} />
           </span>
-          <span>
+          <span className="app-nav-item-text">
             <div style={{ fontSize: "13.5px", fontWeight: 600 }}>Documentos</div>
             <div style={{ fontSize: "10.5px", opacity: 0.75 }}>Pautas e memorandos</div>
           </span>
@@ -576,6 +580,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
           {thread.map((m, i) => (
             <div
               key={i}
+              className="chat-bubble"
               style={{
                 alignSelf: m.role === "user" ? "flex-end" : "flex-start",
                 maxWidth: "78%",
