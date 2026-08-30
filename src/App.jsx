@@ -61,11 +61,24 @@ function saveStoredMessages(companyId, messages) {
   }
 }
 
+function greetingKickoff(personaKey, firstName) {
+  const name = firstName ? ` O nome do usuário é ${firstName}, use o nome dele na saudação.` : "";
+  const base = `Esta é a primeira mensagem da conversa — o usuário acabou de abrir esta aba. Cumprimente-o de forma breve e calorosa, apresente-se e o seu papel em uma frase, e já ofereça ajuda concreta baseada no contexto que você tem, sem inventar dados que não foram fornecidos.${name} Seja conciso (poucos parágrafos curtos, pode usar uma lista curta se fizer sentido) e termine perguntando como pode ajudar hoje.`;
+  if (personaKey === "sandra") {
+    return `${base} Como parte da apresentação, liste os documentos que ainda estão marcados como pendentes no checklist (contexto acima) pedindo para o usuário enviá-los assim que possível, e mencione que ele pode enviar qualquer outra informação relevante para você organizar. Se não houver nenhum documento pendente no contexto, apenas parabenize pela organização e não invente uma lista.`;
+  }
+  if (personaKey === "savio") {
+    return `${base} Sugira que o usuário pode pedir insights sobre diferentes áreas da empresa (financeiro, operacional, comercial) e notícias de mercado relacionadas ao setor da empresa. Se houver dados financeiros reais no contexto, mencione brevemente um ponto relevante deles.`;
+  }
+  return `${base} Mencione que você consolida as leituras de Sávio e Sandra para dar uma visão executiva do negócio.`;
+}
+
 export default function App({ company, profile, onSwitchCompany, onSignOut }) {
   const [active, setActive] = useState("sancho");
   const [messages, setMessages] = useState(() => loadStoredMessages(company?.id));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [greetingsInFlight, setGreetingsInFlight] = useState(() => new Set());
   const [pendingFiles, setPendingFiles] = useState([]); // [{name, attachment}]
   const [processingFiles, setProcessingFiles] = useState(false);
   const [fileError, setFileError] = useState("");
@@ -88,6 +101,49 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
   useEffect(() => {
     if (company?.id) saveStoredMessages(company.id, messages);
   }, [messages, company?.id]);
+
+  // Dispara uma saudação automática e personalizada quando a conversa está vazia
+  useEffect(() => {
+    if (active === "dashboard" || active === "documents") return;
+    if (!company?.id) return;
+    if ((messages[active] || []).length > 0) return;
+    if (greetingsInFlight.has(active)) return;
+
+    setGreetingsInFlight((prev) => new Set(prev).add(active));
+    setLoading(true);
+
+    const firstName = (profile?.full_name || "").trim().split(" ")[0] || "";
+    const kickoff = greetingKickoff(active, firstName);
+
+    (async () => {
+      try {
+        const res = await fetch(SUPABASE_FN_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + SUPABASE_ANON_KEY,
+            apikey: SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            persona: active,
+            messages: [{ role: "user", content: kickoff }],
+            attachments: [],
+            company_id: company.id,
+          }),
+        });
+        const data = await res.json();
+        const reply = data.reply;
+        if (reply) {
+          setMessages((m) => (m[active]?.length > 0 ? m : { ...m, [active]: [{ role: "assistant", content: reply }] }));
+        }
+      } catch (e) {
+        // Falha silenciosa: a pessoa simplesmente começa a conversa manualmente.
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, company?.id]);
 
   async function loadDocuments() {
     const { data } = await supabase
