@@ -523,7 +523,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
             <div style={{ fontSize: "15px", fontWeight: 600 }}>Documentos</div>
             <div style={{ fontSize: "12px", color: "rgba(237,234,227,0.5)" }}>· {company?.name}</div>
           </div>
-          <Documents company={company} />
+          <Documents company={company} profile={profile} />
         </div>
       ) : (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>

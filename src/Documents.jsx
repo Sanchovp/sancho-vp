@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { FileText, Plus, Download, Copy, Trash2, X, Check } from "lucide-react";
+import { FileText, Plus, Download, Copy, Trash2, X, Check, Sparkles, UploadCloud } from "lucide-react";
 import jsPDF from "jspdf";
 import { supabase, SUPABASE_ANON_KEY } from "./lib/supabaseClient";
+import DocumentUpload from "./DocumentUpload";
 
 const GENERATE_FN_URL = "https://rwgjcshisoljccikhtgq.supabase.co/functions/v1/generate-document";
 
@@ -13,7 +14,8 @@ const DOC_TYPES = {
   outro: { label: "Outro", placeholder: "Descreva o documento que você precisa" },
 };
 
-export default function Documents({ company }) {
+export default function Documents({ company, profile }) {
+  const [tab, setTab] = useState("generate");
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -127,9 +129,58 @@ export default function Documents({ company }) {
     });
   }
 
+  const tabNav = (
+    <div style={{ display: "flex", gap: "4px", marginBottom: "20px", borderBottom: "1px solid rgba(237,234,227,0.08)" }}>
+      <button
+        onClick={() => { setTab("generate"); setSelected(null); }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "8px 14px",
+          border: "none",
+          borderBottom: tab === "generate" ? "2px solid #C9A227" : "2px solid transparent",
+          background: "none",
+          color: tab === "generate" ? "#C9A227" : "rgba(237,234,227,0.6)",
+          fontSize: "12.5px",
+          cursor: "pointer",
+        }}
+      >
+        <Sparkles size={13} /> Gerar Documentos
+      </button>
+      <button
+        onClick={() => setTab("upload")}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "8px 14px",
+          border: "none",
+          borderBottom: tab === "upload" ? "2px solid #C9A227" : "2px solid transparent",
+          background: "none",
+          color: tab === "upload" ? "#C9A227" : "rgba(237,234,227,0.6)",
+          fontSize: "12.5px",
+          cursor: "pointer",
+        }}
+      >
+        <UploadCloud size={13} /> Enviar Documentos
+      </button>
+    </div>
+  );
+
+  if (tab === "upload") {
+    return (
+      <div>
+        {tabNav}
+        <DocumentUpload company={company} profile={profile} />
+      </div>
+    );
+  }
+
   if (selected) {
     return (
       <div>
+        {tabNav}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
           <div style={{ fontSize: "15px", fontWeight: 600, maxWidth: "70%" }}>{selected.title}</div>
           <button onClick={() => setSelected(null)} style={iconButtonStyle} title="Fechar">
@@ -167,6 +218,7 @@ export default function Documents({ company }) {
 
   return (
     <div>
+      {tabNav}
       <div style={{ marginBottom: "16px" }}>
         {!showForm ? (
           <button onClick={() => setShowForm(true)} style={addButtonStyle}>
