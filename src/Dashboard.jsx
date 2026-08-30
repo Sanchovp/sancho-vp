@@ -10,6 +10,7 @@ import {
   Building2,
   Users,
   ClipboardList,
+  CreditCard,
   Plus,
   Trash2,
   Pencil,
@@ -67,6 +68,7 @@ const SECTIONS = [
   { key: "team", label: "Equipe", icon: Users },
   { key: "news", label: "Comunicados", icon: Megaphone },
   { key: "events", label: "Calendário", icon: CalendarDays },
+  { key: "billing", label: "Faturamento", icon: CreditCard },
 ];
 
 export default function Dashboard({ company, profile }) {
@@ -245,8 +247,12 @@ export default function Dashboard({ company, profile }) {
               <NewsFeed company={company} canPost={isAdmin} />
             </SectionBlock>
 
-            <SectionBlock innerRef={(el) => (sectionRefs.current.events = el)} title="Calendário" icon={CalendarDays} last>
+            <SectionBlock innerRef={(el) => (sectionRefs.current.events = el)} title="Calendário" icon={CalendarDays}>
               <EventsCalendar company={company} canPost={isAdmin} />
+            </SectionBlock>
+
+            <SectionBlock innerRef={(el) => (sectionRefs.current.billing = el)} title="Faturamento" icon={CreditCard} last>
+              <Billing company={company} isAdmin={isAdmin} />
             </SectionBlock>
           </>
         )}
@@ -978,6 +984,137 @@ function ChecklistRow({ item, isAdmin, onToggle, onDelete }) {
           <Trash2 size={13} />
         </button>
       )}
+    </div>
+  );
+}
+
+/* ---------------- Faturamento ---------------- */
+
+const CHECKOUT_FN_URL = "https://rwgjcshisoljccikhtgq.supabase.co/functions/v1/create-checkout-session";
+const PORTAL_FN_URL = "https://rwgjcshisoljccikhtgq.supabase.co/functions/v1/create-portal-session";
+
+const SUBSCRIPTION_STATUS_LABELS = {
+  ativa: "Ativa",
+  inativa: "Sem assinatura",
+  pendente: "Pendente",
+  cancelada: "Cancelada",
+  inadimplente: "Pagamento pendente",
+};
+
+const SUBSCRIPTION_STATUS_COLORS = {
+  ativa: "#4C7A5C",
+  inativa: "rgba(237,234,227,0.5)",
+  pendente: "#C9A227",
+  cancelada: "rgba(237,234,227,0.4)",
+  inadimplente: "#B25C45",
+};
+
+function Billing({ company, isAdmin }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    load();
+  }, [company?.id]);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("companies")
+      .select("subscription_status, subscription_current_period_end, stripe_customer_id")
+      .eq("id", company.id)
+      .single();
+    setData(data);
+    setLoading(false);
+  }
+
+  async function callFn(url) {
+    setRedirecting(true);
+    setError("");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+          apikey: SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ company_id: company.id }),
+      });
+      const result = await res.json();
+      if (result.error) {
+        setError(result.error);
+        setRedirecting(false);
+        return;
+      }
+      window.location.href = result.url;
+    } catch (e) {
+      setError("Erro ao conectar com o Stripe. Tente novamente.");
+      setRedirecting(false);
+    }
+  }
+
+  if (loading) return null;
+
+  const status = data?.subscription_status || "inativa";
+  const isActive = status === "ativa";
+
+  return (
+    <div style={{ maxWidth: "480px" }}>
+      <div style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+          <div style={cardLabelStyle}>Status da assinatura</div>
+          <span
+            style={{
+              fontSize: "11px",
+              fontWeight: 600,
+              color: SUBSCRIPTION_STATUS_COLORS[status],
+              background: `${SUBSCRIPTION_STATUS_COLORS[status]}22`,
+              padding: "3px 9px",
+              borderRadius: "5px",
+            }}
+          >
+            {SUBSCRIPTION_STATUS_LABELS[status]}
+          </span>
+        </div>
+
+        {data?.subscription_current_period_end && (
+          <div style={{ fontSize: "12px", color: "rgba(237,234,227,0.5)", marginBottom: "14px" }}>
+            {isActive ? "Renova em" : "Válido até"}{" "}
+            {new Date(data.subscription_current_period_end).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+          </div>
+        )}
+
+        {error && <div style={{ fontSize: "12px", color: "#E07856", marginBottom: "12px" }}>{error}</div>}
+
+        {!isAdmin && (
+          <div style={{ fontSize: "12px", color: "rgba(237,234,227,0.45)" }}>
+            Apenas administradores podem gerenciar o faturamento desta empresa.
+          </div>
+        )}
+
+        {isAdmin && (
+          <>
+            {!isActive ? (
+              <button onClick={() => callFn(CHECKOUT_FN_URL)} disabled={redirecting} style={saveButtonStyle}>
+                {redirecting ? "Redirecionando…" : "Assinar agora"}
+              </button>
+            ) : (
+              <button onClick={() => callFn(PORTAL_FN_URL)} disabled={redirecting} style={addButtonStyle}>
+                {redirecting ? "Redirecionando…" : "Gerenciar assinatura"}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      <div style={{ fontSize: "11px", color: "rgba(237,234,227,0.35)", marginTop: "10px" }}>
+        Pagamentos processados com segurança pelo Stripe. Você pode atualizar forma de pagamento, ver faturas ou cancelar a qualquer momento em "Gerenciar assinatura".
+      </div>
     </div>
   );
 }
