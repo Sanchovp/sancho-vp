@@ -28,7 +28,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { supabase, SUPABASE_ANON_KEY } from "./lib/supabaseClient";
+import { supabase, SUPABASE_ANON_KEY, functionHeaders } from "./lib/supabaseClient";
 
 const EXTRACT_FN_URL = "https://rwgjcshisoljccikhtgq.supabase.co/functions/v1/extract-financials";
 const TEAM_FN_URL = "https://rwgjcshisoljccikhtgq.supabase.co/functions/v1/manage-team";
@@ -100,11 +100,7 @@ export default function Dashboard({ company, profile }) {
     try {
       const res = await fetch(EXTRACT_FN_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + SUPABASE_ANON_KEY,
-          apikey: SUPABASE_ANON_KEY,
-        },
+        headers: await functionHeaders(),
         body: JSON.stringify({ company_id: company.id }),
       });
       const data = await res.json();

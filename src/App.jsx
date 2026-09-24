@@ -1,16 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Crown, Calculator, CalendarClock, Building2, LogOut, Paperclip, X, FileText, BarChart3, FileStack } from "lucide-react";
-import { supabase } from "./lib/supabaseClient";
+import { supabase, functionHeaders, FUNCTIONS_URL } from "./lib/supabaseClient";
 import { fileToAttachment } from "./lib/fileToAttachment";
 import Dashboard from "./Dashboard";
 import Documents from "./Documents";
 import ReactMarkdown from "react-markdown";
 
-// Chave pública (anon) do projeto Supabase — segura para expor no front-end.
-// A chave da Anthropic fica só no servidor, dentro da Edge Function.
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3Z2pjc2hpc29samNjaWtodGdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NjkzOTIsImV4cCI6MjEwMzQ0NTM5Mn0._-OrUCqiV76bcAKQu9d7fSVh6o5be8wJrRWr1wntDjc";
-const SUPABASE_FN_URL = "https://rwgjcshisoljccikhtgq.supabase.co/functions/v1/sancho-chat";
+const SUPABASE_FN_URL = `${FUNCTIONS_URL}/sancho-chat`;
 
 const PERSONAS = {
   sancho: {
@@ -119,11 +115,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
       try {
         const res = await fetch(SUPABASE_FN_URL, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + SUPABASE_ANON_KEY,
-            apikey: SUPABASE_ANON_KEY,
-          },
+          headers: await functionHeaders(),
           body: JSON.stringify({
             persona: active,
             messages: [{ role: "user", content: kickoff }],
@@ -208,11 +200,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
     try {
       const res = await fetch(SUPABASE_FN_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + SUPABASE_ANON_KEY,
-          apikey: SUPABASE_ANON_KEY,
-        },
+        headers: await functionHeaders(),
         body: JSON.stringify({
           persona: active,
           messages: nextThread.map((m) => ({ role: m.role, content: m.content })),
@@ -249,11 +237,7 @@ export default function App({ company, profile, onSwitchCompany, onSignOut }) {
     try {
       const res = await fetch(SUPABASE_FN_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + SUPABASE_ANON_KEY,
-          apikey: SUPABASE_ANON_KEY,
-        },
+        headers: await functionHeaders(),
         body: JSON.stringify({
           persona: active,
           messages: nextThread.map((m) => ({ role: m.role, content: m.content })),
